@@ -34,21 +34,21 @@ app.post("/signup", async function (req, res) {
 });
 
 // this will find the user by emailId
-app.get("/user",async function(req,res){
+app.get("/user", async function (req, res) {
   const userEmail = req.body.emailId;
   try {
     const user = await User.find({ emailId: userEmail });
     if (!user) {
       return res.status(404).send({ message: "User not found" });
     }
-    console.log(user); 
+    console.log(user);
     res.status(200).send(user);
   } catch (error) {
     res.status(500).send({ error: "Error fetching user" });
   }
 });
 
-// this will delete the user 
+// this will delete the user
 app.delete("/user", async function (req, res) {
   const userId = req.body.userId;
   try {
@@ -66,49 +66,71 @@ app.delete("/user", async function (req, res) {
 // this will update the user
 // you can update any field in the user model
 
-app.patch("/user", async function (req, res) {
-  const userId = req.body.userId;
-  const updateData = req.body.updateData;
-  try {
-    const updatedUser = await User.findByIdAndUpdate(
-      userId,
-      updateData,
-      { new: true, runValidators: true }
-    );
-    if (!updatedUser) {
-      return res.status(404).send({ message: "User not found" });
-    }
-    console.log(updatedUser);
-    res.status(200).send(updatedUser);
-  } catch (error) {
-    res.status(400).send({ error: "Error updating user" });
-  } 
-});
+// app.patch("/user", async function (req, res) {
+//   const userId = req.body.userId;
+//   const updateData = req.body.updateData;
+//   try {
+//     const updatedUser = await User.findByIdAndUpdate(
+//       userId,
+//       updateData,
+//       { new: true, runValidators: true }
+//     );
+//     if (!updatedUser) {
+//       return res.status(404).send({ message: "User not found" });
+//     }
+//     console.log(updatedUser);
+//     res.status(200).send(updatedUser);
+//   } catch (error) {
+//     res.status(400).send({ error: "Error updating user" });
+//   }
+// });
 
 // this will update the user by  emailId
-app.patch("/user", async function(req,res){
-  const userEmail=req.body.emailId;
-  const updateData=req.body.updateData;
+app.patch("/user/:userId", async function (req, res) {
+  // ? this will insure that if userId is not provided in the request params, it will not throw an error
+  const userId = req.params?.userId;
+  const updateData = req.body;
+
   try {
-    const updatedUser = await User.findOneAndUpdate(
-      { emailId: userEmail },
+    const ALLOWED_UPDATES = [
+      "firstName",
+      "lastName",
+      "gender",
+      "password",
+      "age",
+      "photoUrl",
+      "about",
+      "skills"
+    ];
+
+    // Only validate keys that are part of the updateData
+    const keys = Object.keys(updateData);
+    const isValidOperation = keys.every((key) => ALLOWED_UPDATES.includes(key));
+
+    if (!isValidOperation) {
+      return res.status(400).send({ error: "Invalid update fields!" });
+    }
+
+    const user = await User.findByIdAndUpdate(
+      userId,
       updateData,
-      { new: true, runValidators: true }
+      {
+        new: true,
+        runValidators: true
+      }
     );
-    if (!updatedUser) {
+
+    if (!user) {
       return res.status(404).send({ message: "User not found" });
     }
-    console.log(updatedUser);
-    res.status(200).send(updatedUser);
+
+    console.log("Updated user:", user);
+    res.status(200).send(user);
   } catch (error) {
+    console.error("Update error:", error);
     res.status(400).send({ error: "Error updating user" });
-  } 
-
-})
-
-
-
-
+  }
+});
 // this is Feed api to get all the users
 app.get("/feed", async function (req, res) {
   try {
