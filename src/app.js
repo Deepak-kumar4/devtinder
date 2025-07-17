@@ -1,4 +1,6 @@
 const express = require("express");
+const bcrypt = require("bcrypt");
+const { validateSignUpData, hashPassword } = require("./utils/validation");
 const app = express();
 
 const { adminAuth, userAuth } = require("./middlewares/auth");
@@ -13,23 +15,69 @@ app.get("/", function (req, res) {
   res.send("Welcome to DevTinder API");
 });
 
+app.post("/login", async function (req, res) {
+  // decrpyt the password now
+  // and compare it with the password in the database
+  // if it matches, then send success response
+  try {
+    const { emailId, password } = req.body;
+    // Validate emailId and password
+    if (!emailId || !password) {
+      return res.status(400).send("Email and password are required");
+    }
+
+    // Find user by emailId
+    const user = await User.findOne({ emailId });
+    if (!user) {
+      return res.status(404).send("Invalid credentials: User not found");
+    }
+
+    // Compare the provided password with the stored hashed password
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(401).send("Password is incorrect");
+    }
+
+    // If credentials are valid, send success response
+    res.status(200).send("Login successful");
+  } catch (error) {
+    console.error("Login error:", error);
+    res.status(400).send("ERROR: " + error.message);
+  }
+});
+
 app.post("/signup", async function (req, res) {
+  // validation of the data
+
+  // encryption of the password can be done here
+
   // creating a new instance of User model
   // and saving it to the database
-  const user = new User({
-    firstName: req.body.firstName,
-    lastName: req.body.lastName,
-    emailId: req.body.emailId,
-    password: req.body.password,
-    age: req.body.age,
-    gender: req.body.gender,
-  });
+
   try {
+    // Validate the request body
+    validateSignUpData(req);
+
+    const { firstName, lastName, emailId, password } = req.body;
+
+    // Hash the password before saving
+    const passwordHash = await bcrypt.hash(password, 10);
+    req.body.password = passwordHash; // replace the plain password with the hashed one
+    console.log("Hashed Password:", passwordHash);
+
+    const user = new User({
+      firstName,
+      lastName,
+      emailId,
+      password: passwordHash, // use the hashed password
+    });
+
+    // save the user to the database
     const savedUser = await user.save();
     console.log(savedUser);
     res.status(201).send(savedUser);
   } catch (error) {
-    res.status(400).send({ error: "Error saving user" });
+    res.status(400).send("ERROR: " + error.message);
   }
 });
 
@@ -100,7 +148,7 @@ app.patch("/user/:userId", async function (req, res) {
       "age",
       "photoUrl",
       "about",
-      "skills"
+      "skills",
     ];
 
     // Only validate keys that are part of the updateData
@@ -111,14 +159,10 @@ app.patch("/user/:userId", async function (req, res) {
       return res.status(400).send({ error: "Invalid update fields!" });
     }
 
-    const user = await User.findByIdAndUpdate(
-      userId,
-      updateData,
-      {
-        new: true,
-        runValidators: true
-      }
-    );
+    const user = await User.findByIdAndUpdate(userId, updateData, {
+      new: true,
+      runValidators: true,
+    });
 
     if (!user) {
       return res.status(404).send({ message: "User not found" });
