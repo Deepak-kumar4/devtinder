@@ -85,6 +85,27 @@ app.patch("/user", async function (req, res) {
   } 
 });
 
+// this will update the user by  emailId
+app.patch("/user", async function(req,res){
+  const userEmail=req.body.emailId;
+  const updateData=req.body.updateData;
+  try {
+    const updatedUser = await User.findOneAndUpdate(
+      { emailId: userEmail },
+      updateData,
+      { new: true, runValidators: true }
+    );
+    if (!updatedUser) {
+      return res.status(404).send({ message: "User not found" });
+    }
+    console.log(updatedUser);
+    res.status(200).send(updatedUser);
+  } catch (error) {
+    res.status(400).send({ error: "Error updating user" });
+  } 
+
+})
+
 
 
 
