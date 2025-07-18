@@ -1,22 +1,32 @@
-const adminAuth= function(req, res, next) {
-  console.log("Admin Middleware is called");
-  const token = "xyz";
-  const isAdminAuthorised = token === "xyz";
-  if (!isAdminAuthorised) {
-    return res.status(403).send("Unauthorized access");
-  } else {
-    next();
-  }
-}
+const jwt = require("jsonwebtoken");
+const User = require("../models/user");
 
-const userAuth= function(req, res, next) {
-  console.log("User Middleware is called");
-  const token = "xyz";
-  const isuserAuthorised = token === "xyz";
-  if (!isuserAuthorised) {
-    return res.status(403).send("Unauthorized access");
-  } else {
+const userAuth = async function (req, res, next) {
+  try {
+    const token = req.cookies.token; // requires cookie-parser middleware
+
+    if (!token) {
+      return res.status(401).send("Unauthorized: No token provided");
+    }
+
+    const decoded = jwt.verify(token, "your_jwt_secret");
+
+    if (!decoded || !decoded.userId) {
+      return res.status(401).send("Unauthorized: Invalid token");
+    }
+
+    const user = await User.findById(decoded.userId);
+    if (!user) {
+      return res.status(404).send("User not found");
+    }
+
+    req.user = user; // attach user to req
     next();
+  } catch (error) {
+    console.error("Auth error:", error);
+    return res.status(401).send("Unauthorized: Invalid token");
   }
-}
-module.exports = {adminAuth,userAuth};
+};
+
+module.exports = { userAuth };
+
