@@ -1,14 +1,8 @@
 const express = require("express");
-const bcrypt = require("bcrypt");
-const cookieParser = require("cookie-parser");
-const jwt = require("jsonwebtoken");
-
-const app = express();
-
-const {userAuth} = require("./middlewares/auth");
 const connectDB = require("./config/database");
+const app = express();
+const cookieParser = require("cookie-parser");
 
-const User = require("./models/user");
 
 // Middleware to parse JSON bodies
 app.use(express.json());
@@ -16,150 +10,20 @@ app.use(express.json());
 // Middleware to parse cookies
 app.use(cookieParser());
 
-app.get("/", function (req, res) {
-  res.send("Welcome to DevTinder API");
-});
+const authRouter = require("./routes/auth");
+const requestsRouter = require("./routes/requests");
+const profileRouter = require("./routes/profile");
 
-app.post("/login", async function (req, res) {
-  // decrpyt the password now
-  // and compare it with the password in the database
-  // if it matches, then send success response
-  try {
-    const { emailId, password } = req.body;
-    // Validate emailId and password
-    if (!emailId || !password) {
-      return res.status(400).send("Email and password are required");
-    }
+// Use the routers
+app.use("/", authRouter);
+app.use("/", requestsRouter);
+app.use("/", profileRouter);
 
-    // Find user by emailId
-    const user = await User.findOne({ emailId });
-    if (!user) {
-      return res.status(404).send("Invalid credentials: User not found");
-    }
 
-    // Compare the provided password with the stored hashed password
-    const isMatch = await user.validatePassword(password)
-    if (!isMatch) {
-      return res.status(401).send("Password is incorrect");
-    }
 
-    // create a JWT Token
-    const token = await user.getJWT();
 
-    //console.log("Generated Token:", token);
 
-    // Add the token to cookies and send the response back to user
 
-    // send a cookie with the token
-
-    res.cookie("token", token);
-
-    // If credentials are valid, send success response
-    res.status(200).send("Login successful");
-  } catch (error) {
-    console.error("Login error:", error);
-    res.status(400).send("ERROR: " + error.message);
-  }
-});
-
-// userAuth middleware is used to protect routes that require authentication
-// It checks if the user is authenticated before allowing access to the route
-
-app.get("/profile", userAuth, async function (req, res) {
-  try {
-    // req.user is set by the userAuth middleware
-    const user = req.user;
-    if (!user) {
-      return res.status(404).send("User not found");
-    }
-    // Send the user profile data
-    res.status(200).send(user); 
-
-  } catch (error) {
-    console.error("Profile error:", error);
-    res.status(400).send("ERROR: " + error.message);
-  }
-  
-});
-
-app.post("/signup", async function (req, res) {
-  // validation of the data
-
-  // encryption of the password can be done here
-
-  // creating a new instance of User model
-  // and saving it to the database
-
-  try {
-    // Validate the request body
-    validateSignUpData(req);
-
-    const { firstName, lastName, emailId, password } = req.body;
-
-    // Hash the password before saving
-    const passwordHash = await bcrypt.hash(password, 10);
-    req.body.password = passwordHash; // replace the plain password with the hashed one
-    console.log("Hashed Password:", passwordHash);
-
-    const user = new User({
-      firstName,
-      lastName,
-      emailId,
-      password: passwordHash, // use the hashed password
-    });
-
-    // save the user to the database
-    const savedUser = await user.save();
-    //console.log(savedUser);
-    res.status(201).send(savedUser);
-  } catch (error) {
-    res.status(400).send("ERROR: " + error.message);
-  }
-});
-
-app.post("/sendConnectionRequest", userAuth, async function (req, res) {
-  // This route is for sending a connection request to another user
-  try {
-    const { recipientId } = req.body; // recipientId is the userId of the user to whom you want to send the connection request
-
-    if (!recipientId) {
-      return res.status(400).send("Recipient ID is required");
-    }
-
-    // Find the recipient user
-    const recipient = await User.findById(recipientId);
-    if (!recipient) {
-      return res.status(404).send("Recipient not found");
-    }
-
-    // Here you can implement logic to send a connection request
-    // For example, you can add the recipient's ID to the sender's list of connection requests
-    const sender = req.user; // req.user is set by the userAuth middleware
-    if (!sender) {
-      return res.status(404).send("Sender not found");
-    }
-    // Assuming sender has a field called connectionRequests which is an array of userIds
-    if (!sender.connectionRequests) {
-      sender.connectionRequests = [];
-    }
-    if (sender.connectionRequests.includes(recipientId)) {
-      return res.status(400).send("Connection request already sent");
-    }
-    sender.connectionRequests.push(recipientId);
-    await sender.save(); // Save the updated sender user
-    // Optionally, you can also notify the recipient about the connection request
-    // For example, you can send an email or a notification
-    // res.status(200).send("Connection request sent successfully");
-    // For now, just send a success response
-    console.log(`Connection request sent from ${sender._id} to ${recipient._id}`);
-    // Send a success response
-
-    res.status(200).send("Connection request sent successfully");
-  } catch (error) {
-    console.error("Connection request error:", error);
-    res.status(400).send("ERROR: " + error.message);
-  }
-});
 
 // // this will find the user by emailId
 // app.get("/user", async function (req, res) {
