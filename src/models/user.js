@@ -22,6 +22,8 @@ const userSchema=  new mongoose.Schema({
         required: true,
         // unique true means you cannot have two users with the same emailId
         // it will throw an error if you try to insert a user with the same emailId
+        // if there is unique then it will automatically create the indexes
+        // index : true is not needed 
         unique: true,
         lowercase: true, // this will convert the emailId to lowercase before saving it
         trim: true, // this will remove any leading or trailing spaces from the emailId
@@ -106,10 +108,10 @@ userSchema.methods.getJWT = async function() {
     return token;
 };
 
-userSchema.methods.validatePassword = async function(passwordInpuByUSer){
+userSchema.methods.validatePassword = async function(passwordInputByUSer){
     const user = this;
     const passwordHash = user.password;
-    const isMatch = await bcrypt.compare(passwordInpuByUSer, passwordHash);
+    const isMatch = await bcrypt.compare(passwordInputByUSer, passwordHash);
     return isMatch;
 }
 

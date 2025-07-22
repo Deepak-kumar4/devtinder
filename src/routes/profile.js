@@ -1,11 +1,8 @@
 const express = require("express");
 const { userAuth } = require("../middlewares/auth");
-const {validateEditData, validateEditProfileData} = require("../utils/validation");
-
-
-
-
-
+const {validateEditProfileData} = require("../utils/validation");
+const bcrypt = require("bcrypt");
+const validator = require("validator");
 const profileRouter = express.Router();
 
 // userAuth middleware is used to protect routes that require authentication
@@ -58,6 +55,46 @@ profileRouter.patch("/profile/edit",userAuth,async function(req,res){
     }
 
 })
+
+profileRouter.patch("/profile/password", userAuth, async function (req, res) {
+  try {
+    const loggedInUser = req.user;
+
+    if (!loggedInUser) {
+      return res.status(404).send("User not found");
+    }
+
+    const { newPassword } = req.body;
+
+    if (!newPassword) {
+      return res.status(400).send("New password is required");
+    }
+
+    // Validate password strength
+    if (!validator.isStrongPassword(newPassword)) {
+      return res.status(400).send("New password is not strong enough");
+    }
+
+    // Check if new password is same as old one
+    const isSame = await bcrypt.compare(newPassword, loggedInUser.password);
+    if (isSame) {
+      return res.status(400).send("New password cannot be the same as the old password");
+    }
+
+    // Hash and update password
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    loggedInUser.password = hashedPassword;
+    await loggedInUser.save();
+    res.send(loggedInUser);
+
+    res.status(200).send("Password updated successfully");
+  } catch (error) {
+    console.error("Password update error:", error);
+    res.status(400).send("ERROR: " + error.message);
+  }
+});
+
+
 
 
 

@@ -1,51 +1,72 @@
 const express = require("express");
-const {userAuth} = require("../middlewares/auth");
+const mongoose = require("mongoose");
+const { userAuth } = require("../middlewares/auth");
+const Request = require("../models/connectionRequest");
 
 const requestsRouter = express.Router();
 
-requestsRouter.post("/sendConnectionRequest", userAuth, async function (req, res) {
-  // This route is for sending a connection request to another user
-  try {
-    const { recipientId } = req.body; // recipientId is the userId of the user to whom you want to send the connection request
+const User = require("../models/user"); // Import User model if not already
 
-    if (!recipientId) {
-      return res.status(400).send("Recipient ID is required");
-    }
+requestsRouter.post(
+  "/request/send/:status/:toUserId",
+  userAuth,
+  async function (req, res) {
+    try {
+      const fromUserId = req.user._id;
+      const toUserId = req.params.toUserId;
+      const status = req.params.status;
 
-    // Find the recipient user
-    const recipient = await User.findById(recipientId);
-    if (!recipient) {
-      return res.status(404).send("Recipient not found");
-    }
+      //  Validate status
+      const validStatuses = ["interested", "ignored"];
+      if (!validStatuses.includes(status)) {
+        return res.status(400).send({ error: "Invalid status provided" });
+      }
 
-    // Here you can implement logic to send a connection request
-    // For example, you can add the recipient's ID to the sender's list of connection requests
-    const sender = req.user; // req.user is set by the userAuth middleware
-    if (!sender) {
-      return res.status(404).send("Sender not found");
-    }
-    // Assuming sender has a field called connectionRequests which is an array of userIds
-    if (!sender.connectionRequests) {
-      sender.connectionRequests = [];
-    }
-    if (sender.connectionRequests.includes(recipientId)) {
-      return res.status(400).send("Connection request already sent");
-    }
-    sender.connectionRequests.push(recipientId);
-    await sender.save(); // Save the updated sender user
-    // Optionally, you can also notify the recipient about the connection request
-    // For example, you can send an email or a notification
-    // res.status(200).send("Connection request sent successfully");
-    // For now, just send a success response
-    console.log(`Connection request sent from ${sender._id} to ${recipient._id}`);
-    // Send a success response
+      // Prevent sending request to self
+      if (fromUserId.toString() === toUserId.toString()) {
+        return res.status(400).send({ error: "You cannot send a request to yourself" });
+      }
 
-    res.status(200).send("Connection request sent successfully");
-  } catch (error) {
-    console.error("Connection request error:", error);
-    res.status(400).send("ERROR: " + error.message);
+      // Check if `toUserId` exists
+      const toUserExists = await User.findById(toUserId);
+      if (!toUserExists) {
+        return res.status(404).send({ error: "Target user not found" });
+      }
+
+      // Check for existing requests in either direction
+      // here we will create a compound index // search 
+      const existingRequest = await Request.findOne({
+        $or: [
+          { fromUserId, toUserId },
+          { fromUserId: toUserId, toUserId: fromUserId }
+        ]
+      });
+      if (existingRequest) {
+        return res.status(400).send({ error: "Request already exists" });
+      }
+
+      // Create new request
+      const connectionRequest = await Request.create({
+        fromUserId,
+        toUserId,
+        status,
+      });
+
+      const data = await connectionRequest.save();
+
+      res.status(201).send({
+        message: req.user.firstName +" is "+ status + " in " + toUserId,
+        data,
+      });
+
+    } catch (error) {
+      console.error("Error sending request:", error);
+      res.status(500).send({ error: "Internal server error" });
+    }
   }
-});
+);
+
+
 
 
 module.exports = requestsRouter;
